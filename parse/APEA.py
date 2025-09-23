@@ -33,13 +33,10 @@ class index(IntEnum):
     EquipmentWeightIdx = 3
     InstalledWeightIdx = 4
     UtilityCostIdx = 5
-
+    HeatTransferAreaIdx = 6
+    DriverPowerIdx = 7
+ 
 data = []
-EquipmentCost = []
-InstalledCost = []
-EquipmentWeight = []
-InstalledWeight = []
-UtilityCost = []
 
 pd.set_option("display.max_rows", None)       # 모든 행 보이기
 pd.set_option("display.max_columns", None)    # 모든 열 보이기
@@ -48,19 +45,42 @@ pd.set_option("display.max_colwidth", None)   # 열 안 문자열도 끝까지 �
  
 df = pd.read_excel(io = '../input/NH3.xlsx', sheet_name='Unit operation', usecols='C:H', header=3, engine='openpyxl')
 for i in range(0, len(df), 1):
-    temp = []
-    temp.append(df.iat[i, index.NameIdx])
-    temp.append(float(df.iat[i, index.EquipmentCostIdx])) # type 확인해서 <class 'numpy.int64'>면 int로, <class 'numpy.float64'>면 float으로 형변환하면 더 좋다.
-    temp.append(float(df.iat[i, index.InstalledCostIdx]))
-    temp.append(float(df.iat[i, index.EquipmentWeightIdx]))
-    temp.append(float(df.iat[i, index.InstalledWeightIdx]))
-    temp.append(float(df.iat[i, index.UtilityCostIdx]))
+    temp = [0 for K in range(8)]
+    temp[index.NameIdx] = df.iat[i, index.NameIdx]
+    temp[index.EquipmentCostIdx] = float(df.iat[i, index.EquipmentCostIdx]) # type 확인해서 <class 'numpy.int64'>면 int로, <class 'numpy.float64'>면 float으로 형변환하면 더 좋다.
+    temp[index.InstalledCostIdx] = float(df.iat[i, index.InstalledCostIdx])
+    temp[index.EquipmentWeightIdx] = float(df.iat[i, index.EquipmentWeightIdx])
+    temp[index.InstalledWeightIdx] = float(df.iat[i, index.InstalledWeightIdx])
+    temp[index.UtilityCostIdx] = float(df.iat[i, index.UtilityCostIdx])
+    temp[index.HeatTransferAreaIdx] = 0.0
+    temp[index.DriverPowerIdx] = 0.0
     data.append(temp)
-    print(checkType(data[i][index.NameIdx]))
 
-print(data)
-# 이제 REACT, HTX, HEX, COMP. FLASH, MIX 이렇게 종류별로 저장해둬야함
+# print(data)
+# 이제 REACT, HTX, HEX, COMP. FLASH, MIX 이렇게 종류별로 저장해둬야함 -> Flash와 Mix의 비용은 없다치는건가?
 # 이름 + 다섯 종류의 가격을 나타내야함. -> 2차원 배열로 저장하자(파이썬의 배열은 자료형이 전부 달라도 한 배열에 저장 가능하다
 # Name, EquipmentCost, InstalledCost, EquipmentWeight, InstalledWeight, UtilityCost 순서로 저장하고, 배열의 인덱스를 저 이름으로 접근가능하게 enum 설정해서 가독성 높이자
 # 2차원 배열 하나로만 저장하는걸로 -> type을 확인하는 함수만 하나 따로 만들어두자.
 
+df = pd.read_excel(io = '../input/NH3.xlsx', sheet_name='TEMA HEX', usecols='C:K', header=1, engine='openpyxl')
+for i in range(0, 8):
+    name = df.iat[1, i]
+    area = df.iat[8, i]
+    for j in range(0, len(data)):
+        if (data[j][index.NameIdx] == name):
+            if (area != "nan"):
+                data[j][index.HeatTransferAreaIdx] = float(area)
+            break
+
+df = pd.read_excel(io = '../input/NH3.xlsx', sheet_name='Centrif gas compr', usecols='D:H', header=1, engine='openpyxl')
+for i in range(0, 5):
+	name = df.iat[1, i]
+	power = df.iat[14, i]
+	for j in range(0, len(data)):
+		if (data[j][index.NameIdx] == name):
+			if (area != "nan"):
+				data[j][index.DriverPowerIdx] = float(power)
+			break
+
+# TEMA HEX 시트의 각 Heat exchanger별 Heat transfer area [sqm]를 저장해둬야한다.
+print(data)
