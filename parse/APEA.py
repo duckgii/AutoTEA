@@ -117,7 +117,7 @@ HeatExchangerParam["HEX"] = {"K1": 4.3247, "K2": -0.303, "K3": 0.1634, "B1":1.63
 # Fixed tube 방식으로 우선 계산
 
 # COMP는 COMPRESSOR로 Compressor Data (without electric motors)의 Centrifugal(근데 값이 세 개가 같아서 뭐인지 모름),Rotary의 파라미터들을 사용해야함.
-HeatExchangerParam["COMP"] = {"K1": 4.3247, "K2": -0.303, "K3": 0.1634}
+HeatExchangerParam["COMP"] = {"K1": 2.2891, "K2": 1.3604, "K3": -0.1027}
 # Centrifugal, axial and reciprocating 방식으로 우선 계산.
 # Reactor의 입력 방식은 다시 생각해보자.
 
@@ -144,7 +144,7 @@ for line in lines:
 					data[i][index.HeatTransferAreaIdx] = cost
 				elif (checkType(name) == "COMP"):
 					data[i][index.DriverPowerIdx] = cost
-		# print("NAME : %-10s CONSUMPTION : %s" %(name, cost))
+		print("NAME : %-10s CONSUMPTION : %f" %(name, cost))
   
  
 cost = {} # 2차원 딕셔너리로 "이름" : {딕셔너리} 이렇게 저장하고 각 유닛 종류별 인자와 계산 결과를 출력한다.
@@ -170,27 +170,130 @@ for i in range(0, len(data), 1):
 		temp["C_BM"] = temp["EQUIPMENT COST"] * (temp["B1"] + temp["B2"] * temp["FM"])
 	elif (type == "COMP"):
 		temp = deepcopy(HeatExchangerParam["COMP"])
-		temp["EQUIPMENT COST"] = (10**(temp["K1"] + temp["K2"] * math.log(data[i][index.DriverPowerIdx], 10) + temp["K3"] * ((math.log(data[i][index.DriverPowerIdx]))**2)))
-	if (data[i][index.EquipmentCostIdx] != 0):
-		# print(data[i][index.EquipmentCostIdx])
-		temp["EQUIPMENT COST"] = data[i][index.EquipmentCostIdx]
-	print(temp)
+		temp["EQUIPMENT COST"] = (10**(temp["K1"] + temp["K2"] * (math.log(data[i][index.DriverPowerIdx], 10)) + (temp["K3"] * ((math.log(data[i][index.DriverPowerIdx], 10))**2)))) * (798.8 / 397)
+		print(temp)
+	# 여기는 이미 가격 계산 되어있으면 계산 안 하는 부분
+	# if (data[i][index.EquipmentCostIdx] != 0): 
+	# 	print(data[i][index.EquipmentCostIdx])
+	# 	temp["EQUIPMENT COST"] = data[i][index.EquipmentCostIdx]
+	# print(temp)
 	cost[data[i][index.NameIdx]] = deepcopy(temp)
 	 
-print(cost)
+# print(cost)
 # 이제 여기서 Capacity 값은 각 모듈별로 파싱해서 저장해둬야함.
 
+'''
+	이제 Utility값 파싱해서 저장하는 부분
+	장치별로 COOLING UTILITY, HOT UTILITY, ELECTRICITY UTILITY를 저장해야한다.
+	COOLING UTILITY는 UTILITY USAGE [kg/hr], ANNUAL USAGE [kg/year], UTILITY COST [USD/hr], ANNUAL COST [USD/year]로 이루어져 있고
+	HOT UTILITY는 DUTY [kW], ANNUAL DUTY [kWh/year], REQUIRED Utility [kg/hr], ANNUAL COST [USD/year]로 이루어져 있고, 
+	ELECTRICITY UTILITY는 UTILITY USAGE [kW], ANNUAL USAGE [kWh/year], ANNUAL COST [USD/year]로 이루어져 있다.
+	기계 종류별로 정해져 있는 utility가 아니라 각 기계에서 어떤 일을 하는지에 따라 어떤 유틸리티를 저장하는지 달라진다.
+'''
 
+''' 
+	Aspen에는             
+ 				 UTILITY SECTION........................................ 37
+                 UTILITY USAGE:  COOLINGW  (WATER)................. 37
+                 UTILITY USAGE:  ELECTRO   (ELECTRICITY)........... 38
+                 UTILITY USAGE:  FIRE1000  (GENERAL)............... 39
+                 UTILITY USAGE:  HOTOIL    (GENERAL)............... 40
+    다음과같이 섹션이 나눠져 있다.
+    
+    BLOCK:  H-COMP-1 MODEL: COMPR (CONTINUED)  에
+    UTILITY ID FOR ELECTRICITY               ELECTRO
+  	RATE OF CONSUMPTION                    4153.8584  KW              
+  	COST                                    321.9240  $/HR            
+  	CO2 EQUIVALENT EMISSIONS               1296.6054  KG/HR  와 같이 나와있다.
+   
+   여기서 COMSUMPTION과 COST를 활용하여 원하는 utility값을 뽑아내면 완료
+   
+   1. COOLING의 Water 사용량은 COOLINGW 검색해서 아래에 나오는 사용량 뽑아내면 됨
+     UTILITY ID FOR WATER                    COOLINGW
+  	 RATE OF CONSUMPTION                    3.7253+05  KG/HR  
+    
+   2. HEATING의 DUTY 사용량은 HEAT DUTY  CAL/SEC  0.32239E+06
+   	  에서 해당 CAL을 4.184 J을 활용하여 변환하고 KW 단위로 변경하면 된다.
+                                 ***  RESULTS  ***
+   	OUTLET TEMPERATURE    C                                    420.00    
+   	OUTLET PRESSURE       BAR                                  274.00    
+   	HEAT DUTY             CAL/SEC                             0.32239E+06
+   	OUTLET VAPOR FRACTION                                      1.0000   
+   
+   3. ELECTRICITY는  UTILITY ID FOR ELECTRICITY 에서 다음 줄인
+   	  RATE OF CONSUMPTION  의 값을 읽어오면 된다.
+      
+      UTILITY ID FOR ELECTRICITY               ELECTRO
+  	  RATE OF CONSUMPTION                    4153.8584  KW 
+    
+    ** HEX의 유틸리티값은 파일에서도 제외되어 있어서 일단 뺌
+    ** COOLER는 HEAT DUTY + WATER CONSUMPTION 둘 다 있어서 COOLING있는 애면 DUTY 파싱하지 않기
+    -> 이제 이걸로 Utility값 읽어와서 파일에 출력하면 끝
+'''
+
+fd = open("./input/nh3_demo.rep", mode='r')
+lines = fd.readlines()
+parseflag = 1
+utility =  {}
+for line in lines:
+	if ("BLOCK:" in line):
+		temp = list(line.split("  "))
+		temp2 = temp[1].split(": ")
+		temp2 = temp2[0].split(" ")
+		name = temp2[0]
+		if (checkType(name) == "HEX"):
+			parseflag = 0
+		else:
+			parseflag = 1
+	if ("COOLING" in line):
+		parseflag = 2
+	if ("ELECTRO" in line):
+		parseflag = 3
+  
+	if ((parseflag == 2 or parseflag == 3)and "RATE OF CONSUMPTION" in line):
+		temp = list(line.split("                    "))
+		temp2 = list(temp[1].split(" "))
+		temp3 = list(temp2[0].split('+'))
+		num = float(temp3[0])
+		if (len(temp3) > 1):
+			for i in range(int(temp3[1])):
+				num *=  10
+		print("NAME : %-10s CONSUMPTION : %s" %(name, num))
+		if (parseflag == 2):
+			utility[name] = ["COOLING UTILITY", num]
+		if (parseflag == 3):
+			utility[name] = ["ELECTRICITY UTILITY", num]
+  
+	if (parseflag == 1 and "HEAT DUTY" in line):
+		temp = list(line.split("CAL/SEC"))
+		for i in range(0, len(temp)):
+			temp[i] = temp[i].replace(" ", "").replace('\n', "").replace('E', "")
+		if (len(temp) > 1):
+			temp3 = list(temp[1].split('+'))
+			num = float(temp3[0])
+			if (len(temp3) > 1):
+				for i in range(int(temp3[1])):
+					num *=  10
+		else:
+			num = temp[0]
+		# num 단위변환
+		num *= 0.004184
+		print("NAME : %-10s HEAT DUTY : %s" %(name, num))
+		utility[name] = ["HOT UTILITY", num]
+
+#이제 예쁘게 출력만 하면 완성이다~
 
 parse_out = pd.DataFrame(data)
 parse_out.columns = ["Name", "EquipmentCost", "InstalledCost", "EquipmentWeight", "InstalledWeight", "UtilityCost", "HeatTransferArea", "DriverPower"]
 # parse_out = pd.DataFrame(data)
 capcost = pd.DataFrame(cost)
+utility_cost = pd.DataFrame(utility)
 
 # Excel로 저장
 with pd.ExcelWriter("output.xlsx", mode="w", engine="openpyxl") as writer:
 	parse_out.to_excel(writer, sheet_name="parse", index=False) # 행번호 빼고 저장하겠다.
 	capcost.to_excel(writer, sheet_name="CAPCOST")
+	utility_cost.to_excel(writer, sheet_name="UTILITY")
 	
 # U-Tube는 어디서 자료 가져온건지 나와있지 않음... 뭐지
 # df = pd.read_excel(io = '../input/NH3_TEA.xlsx', sheet_name='Centrif gas compr', usecols='D:H', header=1, engine='openpyxl')
