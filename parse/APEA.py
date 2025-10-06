@@ -1,36 +1,8 @@
 #!/opt/anaconda3/envs/myenv/bin/python
 import pandas as pd
-from enum import IntEnum
 import math
 from copy import deepcopy
-
-class index(IntEnum):
-	COMPTYPE = 0
-	K1 = 1
-	K2 = 2
-	K3 = 3
-	FBMCS = 4
-	QMIN = 4
-	FBMSS = 5
-	QMAX = 5
-	FBMNI = 6
-	PMAX = 6
-	WMIN = 7
-	C1 = 7
-	WMAX = 8
-	C2 = 8
-	C3 = 9
-	FBM = 10
-	
-	NameIdx = 0
-	EquipmentCostIdx = 1
-	InstalledCostIdx = 2
-	EquipmentWeightIdx = 3
-	InstalledWeightIdx = 4
-	UtilityCostIdx = 5
-	HeatTransferAreaIdx = 6
-	DriverPowerIdx = 7
-	
+from enums import Index
 
 def checkType(name):
 	length = len(name)
@@ -55,7 +27,7 @@ def checkType(name):
 		elif (length - i + 1 >= FLASHLen and name[i:i + FLASHLen] == "FLASH"):
 			return "FLASH"
 		
-data = []
+inputData = []
 
 pd.set_option("display.max_rows", None)       # 모든 행 보이기
 pd.set_option("display.max_columns", None)    # 모든 열 보이기
@@ -65,18 +37,18 @@ pd.set_option("display.max_colwidth", None)   # 열 안 문자열도 끝까지 �
 df = pd.read_excel(io = './input/NH3.xlsx', sheet_name='Unit operation', usecols='C:H', header=3, engine='openpyxl')
 for i in range(0, len(df), 1): #C랑 C++에 익숙해 2차원 딕셔너리를 생각을 못 했다 이게 더 간단할듯 근데 그거나 그거나 비슷함
 	temp = [0 for K in range(8)]
-	temp[index.NameIdx] = df.iat[i, index.NameIdx]
-	temp[index.EquipmentCostIdx] = float(df.iat[i, index.EquipmentCostIdx]) # type 확인해서 <class 'numpy.int64'>면 int로, <class 'numpy.float64'>면 float으로 형변환하면 더 좋다.
-	temp[index.InstalledCostIdx] = float(df.iat[i, index.InstalledCostIdx])
-	temp[index.EquipmentWeightIdx] = float(df.iat[i, index.EquipmentWeightIdx])
-	temp[index.InstalledWeightIdx] = float(df.iat[i, index.InstalledWeightIdx])
-	temp[index.UtilityCostIdx] = float(df.iat[i, index.UtilityCostIdx])
-	temp[index.HeatTransferAreaIdx] = 0.0 
+	temp[Index.NameIdx] = df.iat[i, Index.NameIdx]
+	temp[Index.EquipmentCostIdx] = float(df.iat[i, Index.EquipmentCostIdx]) # type 확인해서 <class 'numpy.int64'>면 int로, <class 'numpy.float64'>면 float으로 형변환하면 더 좋다.
+	temp[Index.InstalledCostIdx] = float(df.iat[i, Index.InstalledCostIdx])
+	temp[Index.EquipmentWeightIdx] = float(df.iat[i, Index.EquipmentWeightIdx])
+	temp[Index.InstalledWeightIdx] = float(df.iat[i, Index.InstalledWeightIdx])
+	temp[Index.UtilityCostIdx] = float(df.iat[i, Index.UtilityCostIdx])
+	temp[Index.HeatTransferAreaIdx] = 0.0 
 	#-> 이거 없는 경우 파싱 다른 곳에서 해서 가져와야함 HTX는 "RATE OF CONSUMPTION"  이거 찾아서 가져오면 됨
 	# HEX는 "ZONE HEAT TRANSFER AND AREA" 에서 AREA 값 가져오면 됨
-	temp[index.DriverPowerIdx] = 0.0
+	temp[Index.DriverPowerIdx] = 0.0
 	# 이거 없는 경우는 .rep에서 COMP의 "RATE OF CONSUMPTION" 이거 가져오면 됨. 근데 이 데이터 rep 말고 xml 있으면 더 편할 것 같음.
-	data.append(temp)
+	inputData.append(temp)
 
 # 이제 REACT, HTX, HEX, COMP. FLASH, MIX 이렇게 종류별로 저장해둬야함 -> Flash와 Mix의 비용은 없다치는건가?
 # 이름 + 다섯 종류의 가격을 나타내야함. -> 2차원 배열로 저장하자(파이썬의 배열은 자료형이 전부 달라도 한 배열에 저장 가능하다
@@ -88,10 +60,10 @@ df = pd.read_excel(io = './input/NH3.xlsx', sheet_name='TEMA HEX', usecols='C:K'
 for i in range(0, 8):
 	name = df.iat[1, i]
 	area = df.iat[8, i]
-	for j in range(0, len(data)):
-		if (data[j][index.NameIdx] == name):
+	for j in range(0, len(inputData)):
+		if (inputData[j][Index.NameIdx] == name):
 			if (area != "nan"):
-				data[j][index.HeatTransferAreaIdx] = float(area) 
+				inputData[j][Index.HeatTransferAreaIdx] = float(area) 
     			# HTX는 이 값으로 구하는 거 아니라서 변경해야함.Capacity (kW)를 활용함.. 또 쿨러는 뭔가 다른 것 같은데.. 우선 계산된 값은 건드리지 말자.
 			break
 
@@ -100,17 +72,17 @@ df = pd.read_excel(io = './input/NH3.xlsx', sheet_name='Centrif gas compr', usec
 for i in range(0, 5):
 	name = df.iat[1, i]
 	power = df.iat[14, i]
-	for j in range(0, len(data)):
-		if (data[j][index.NameIdx] == name):
+	for j in range(0, len(inputData)):
+		if (inputData[j][Index.NameIdx] == name):
 			if (area != "nan"):
-				data[j][index.DriverPowerIdx] = float(power)
+				inputData[j][Index.DriverPowerIdx] = float(power)
 			break
 
 HeatExchangerParam = {}
 # HTX는 HEATER으로 Costdata sheet에서 Fired Heater Data의 Thermal Fluid Heaters 의 파라미터들을 사용해야함
 HeatExchangerParam["HTX"] = {"K1": 2.2628, "K2": 0.8581, "K3": 0.0003, "B1":1.63, "B2":1.66, "FM":1.35} 
 #Diphenyl heater 방식으로 우선 계산.
-#K값은 "Fired Heater Data"에서, B값은 "Heat Exchanger Data"에서,Fm값은 "Materail Factors, FM" 여기서 가져왔다.
+#K값은 "Fired Heater Data"에서, B값은 "Heat Exchanger Data"에서,Fm값은 "Material Factors, FM" 여기서 가져왔다.
 
 # HEX는 HEAT EXCHANGER으로 Heat Exchanger Data에서 Fixed tube, Floating Head, Bayonet의 파라미터들을 사용해야함
 HeatExchangerParam["HEX"] = {"K1": 4.3247, "K2": -0.303, "K3": 0.1634, "B1":1.63, "B2":1.66, "FM":1.35}
@@ -134,23 +106,23 @@ for line in lines:
 		temp = list(line.split("                    "))
 		temp2 = list(temp[1].split(" "))
 		temp3 = list(temp2[0].split('+'))
-		cost = float(temp3[0])
+		rate = float(temp3[0])
 		if (len(temp3) > 1):
 			for i in range(0, int(temp3[1])):
-				cost *=  10
-		for i in range(0, len(data)):
-			if (data[i][index.NameIdx] == name):
+				rate *=  10
+		for i in range(0, len(inputData)):
+			if (inputData[i][Index.NameIdx] == name):
 				if (checkType(name) == "HTX"):
-					data[i][index.HeatTransferAreaIdx] = cost
+					inputData[i][Index.HeatTransferAreaIdx] = rate
 				elif (checkType(name) == "COMP"):
-					data[i][index.DriverPowerIdx] = cost
-		print("NAME : %-10s CONSUMPTION : %f" %(name, cost))
+					inputData[i][Index.DriverPowerIdx] = rate
+		print("NAME : %-10s CONSUMPTION : %f" %(name, rate))
   
  
 cost = {} # 2차원 딕셔너리로 "이름" : {딕셔너리} 이렇게 저장하고 각 유닛 종류별 인자와 계산 결과를 출력한다.
-for i in range(0, len(data), 1):
+for i in range(0, len(inputData), 1):
 	temp = {}
-	type = checkType(data[i][index.NameIdx])
+	type = checkType(inputData[i][Index.NameIdx])
 	
  	# 여기서 이제 cost의 값들을 하나씩 이름, 인자 순으로 저장해야함.
 	'''
@@ -162,22 +134,22 @@ for i in range(0, len(data), 1):
 	'''
 	if (type == "HEX"):
 		temp = deepcopy(HeatExchangerParam["HEX"])
-		temp["EQUIPMENT COST"] = ((10**(temp["K1"]+temp["K2"]+temp["K3"]))*(data[i][index.HeatTransferAreaIdx] / 10)**(0.6)) * (798.8 / 397)
+		temp["EQUIPMENT COST"] = ((10**(temp["K1"]+temp["K2"]+temp["K3"]))*(inputData[i][Index.HeatTransferAreaIdx] / 10)**(0.6)) * (798.8 / 397)
 		temp["C_BM"] = temp["EQUIPMENT COST"] * (temp["B1"] + temp["B2"] * temp["FM"])
 	elif (type == "HTX"):
 		temp = deepcopy(HeatExchangerParam["HTX"])
-		temp["EQUIPMENT COST"] = ((10**(temp["K1"]+temp["K2"]+temp["K3"]))*(data[i][index.HeatTransferAreaIdx] / 10)**(0.6)) * (798.8 / 397)
+		temp["EQUIPMENT COST"] = ((10**(temp["K1"]+temp["K2"]+temp["K3"]))*(inputData[i][Index.HeatTransferAreaIdx] / 10)**(0.6)) * (798.8 / 397)
 		temp["C_BM"] = temp["EQUIPMENT COST"] * (temp["B1"] + temp["B2"] * temp["FM"])
 	elif (type == "COMP"):
 		temp = deepcopy(HeatExchangerParam["COMP"])
-		temp["EQUIPMENT COST"] = (10**(temp["K1"] + temp["K2"] * (math.log(data[i][index.DriverPowerIdx], 10)) + (temp["K3"] * ((math.log(data[i][index.DriverPowerIdx], 10))**2)))) * (798.8 / 397)
+		temp["EQUIPMENT COST"] = (10**(temp["K1"] + temp["K2"] * (math.log(inputData[i][Index.DriverPowerIdx], 10)) + (temp["K3"] * ((math.log(inputData[i][Index.DriverPowerIdx], 10))**2)))) * (798.8 / 397)
 		print(temp)
 	# 여기는 이미 가격 계산 되어있으면 계산 안 하는 부분
-	# if (data[i][index.EquipmentCostIdx] != 0): 
-	# 	print(data[i][index.EquipmentCostIdx])
-	# 	temp["EQUIPMENT COST"] = data[i][index.EquipmentCostIdx]
+	# if (inputData[i][Index.EquipmentCostIdx] != 0): 
+	# 	print(inputData[i][Index.EquipmentCostIdx])
+	# 	temp["EQUIPMENT COST"] = inputData[i][Index.EquipmentCostIdx]
 	# print(temp)
-	cost[data[i][index.NameIdx]] = deepcopy(temp)
+	cost[inputData[i][Index.NameIdx]] = deepcopy(temp)
 	 
 # print(cost)
 # 이제 여기서 Capacity 값은 각 모듈별로 파싱해서 저장해둬야함.
@@ -283,20 +255,35 @@ for line in lines:
 
 #이제 예쁘게 출력만 하면 완성이다~
 
-parse_out = pd.DataFrame(data)
+parse_out = pd.DataFrame(inputData)
 parse_out.columns = ["Name", "EquipmentCost", "InstalledCost", "EquipmentWeight", "InstalledWeight", "UtilityCost", "HeatTransferArea", "DriverPower"]
-# parse_out = pd.DataFrame(data)
 capcost = pd.DataFrame(cost)
 utility_cost = pd.DataFrame(utility)
 
-# Excel로 저장
-with pd.ExcelWriter("output.xlsx", mode="w", engine="openpyxl") as writer:
-	parse_out.to_excel(writer, sheet_name="parse", index=False) # 행번호 빼고 저장하겠다.
-	capcost.to_excel(writer, sheet_name="CAPCOST")
-	utility_cost.to_excel(writer, sheet_name="UTILITY")
-	
+def safe_df(df):
+    # 인덱스가 RangeIndex(0,1,2,...)가 아니거나, 인덱스 이름이 있다면 컬럼으로 복구
+    if not isinstance(df.index, pd.RangeIndex) or df.index.name is not None:
+        return df.reset_index()
+    return df
+
+with pd.ExcelWriter("output.xlsx", engine="xlsxwriter") as writer:
+    parse_out2   = safe_df(parse_out)
+    capcost2     = safe_df(capcost)
+    utility2     = safe_df(utility_cost)
+
+    parse_out2.to_excel(writer, sheet_name="parse",   index=False)
+    capcost2.to_excel(writer,   sheet_name="CAPCOST", index=False)
+    utility2.to_excel(writer,   sheet_name="UTILITY", index=False)
+
+    # (옵션) 자동 너비 맞추기
+    for name, df in [("parse", parse_out2), ("CAPCOST", capcost2), ("UTILITY", utility2)]:
+        ws = writer.sheets[name]
+        for c, col in enumerate(df.columns):
+            maxlen = max(len(str(col)), *(len(str(v)) for v in df[col].astype(str)))
+            ws.set_column(c, c, min(maxlen + 2, 60))
+            
 # U-Tube는 어디서 자료 가져온건지 나와있지 않음... 뭐지
 # df = pd.read_excel(io = '../input/NH3_TEA.xlsx', sheet_name='Centrif gas compr', usecols='D:H', header=1, engine='openpyxl')
 
 
-# print(data)
+# print(inputData)
